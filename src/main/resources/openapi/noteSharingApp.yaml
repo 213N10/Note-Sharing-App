@@ -1,0 +1,942 @@
+openapi: 3.0.3
+info:
+  title: Note Sharing Application - API Documentation
+  description: |-
+    This is the documentation for Note Sharing Application API. Made for course Information System Modelling 
+  termsOfService: http://swagger.io/terms/
+  contact:
+    email: 263930@student.pwr.edu.pl
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.0
+externalDocs:
+  description: Find out more about Note Sharing App
+  url: https://github.com/213N10/Note-Sharing-App
+servers:
+  - url: http://note-sharing-app.pl/api/v1
+tags:
+  - name: notes
+    description: Managing your notes
+    externalDocs:
+      description: Find out more
+      url: http://swagger.io
+
+  - name: users
+    description: Operations about user
+  - name: report
+    description: Report violation and check reported submissions
+
+  - name: comments
+    description: Comments management
+
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Report:
+      type: object
+      properties:
+        report_type:
+          type: string
+          enum: [comment, note]
+        id:
+          type: string
+        target_id:
+          type: string
+          description: ID of the note or comment being reported.
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [pending, verified, rejected]
+    ReportPost:
+      type: object
+      properties:
+        report_type:
+          type: string
+          enum: [comment, note]
+        target_id:
+          type: string
+          description: ID of the note or comment being reported.
+        reason:
+          type: string
+
+
+    Note:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        author_id:
+          type: string
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              filename:
+                type: string
+              author:
+                type: string
+      example:
+        id: "1234"
+        title: "Sample Note"
+        author_id: "5678"
+        files:
+          - filename: "document.pdf"
+            author: "John Doe"
+          - filename: "notes.docx"
+            author: "Jane Doe"
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+        note_id:
+          type: string
+        author_id:
+          type: string
+        content:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        username:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        user_status:
+          type: string
+          enum: [active, blocked, banned]
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token for authentication
+        user:
+          $ref: '#/components/schemas/User'
+
+
+paths:
+  /reports:
+    post:
+      summary: Report a violation
+      description: A user reports a violation related to a note or comment.
+      tags:
+        - report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportPost'
+      responses:
+        "201":
+          description: Report has been submitted.
+        "400":
+          description: Invalid input data.
+
+    get:
+      security:
+        - BearerAuth: []
+      summary: Retrieve list of reports
+      description: An administrator retrieves the list of reported violations.
+      tags:
+        - report
+      parameters:
+        - name: report_type
+          in: query
+          schema:
+            type: string
+            enum: [comment, note]
+          description: Filter reports by type (comment or note).
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, verified, rejected]
+          description: Filter reports by status.
+        - name: id
+          in: query
+          schema:
+            type: string
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            description: "The number of items to skip before starting to collect the result set."
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            description: "The number of items to return in the result set."
+
+
+      responses:
+        "200":
+          description: List of reports.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Report'
+        "403":
+          description: Forbidden - Admin access required.
+
+  /reports/{id}:
+    patch:
+      security:
+        - BearerAuth: []
+      summary: Verify a report
+      description: An administrator approves or rejects a report.
+      tags:
+        - report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Report ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [verified, rejected]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Report'
+
+          description: Report status has been updated.
+        "403":
+          description: Forbidden - Admin access required.
+        "404":
+          description: Report not found.
+
+
+  /notes/{id}/comments:
+    get:
+      summary: Get comments about note
+      description: Users get comments about a note
+      tags:
+        - comments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            description: "The number of items to skip before starting to collect the result set."
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            description: "The number of items to return in the result set."
+      responses:
+        "200":
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+        "400":
+          description: Invalid note ID format.
+        "403":
+          description: Forbidden - User is not authorized to view comments.
+        "404":
+          description: Note not found.
+        "500":
+          description: Internal server error.
+
+    post:
+      security:
+        - BearerAuth: []
+      summary: Add a comment to a note
+      description: Users can add a new comment to a specific note.
+      tags:
+        - comments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  description: The content of the comment.
+                author_id:
+                  type: string
+                  description: The ID of the user adding the comment.
+                note_id:
+                  type: string
+                  description: The ID of commented note.
+      responses:
+        "201":
+          description: Comment successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        "400":
+          description: Invalid input data.
+        "403":
+          description: Forbidden - User is not authorized to add a comment.
+        "404":
+          description: Note not found.
+        "500":
+          description: Internal server error.
+
+  /comments/{id}:
+    patch:
+      security:
+        - BearerAuth: []
+      summary: Update comment
+      description: Logged users can edit their comment.
+      tags:
+        - comments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+      responses:
+        "200":
+          description: Updated comment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        "400":
+          description: Invalid comment ID format.
+        "403":
+          description: Forbidden - User is not authorized to edit this comment.
+        "404":
+          description: Comment not found.
+        "500":
+          description: Internal server error.
+    delete:
+      security:
+        - BearerAuth: []
+      summary: Delete comment
+      description: Logged users can delete their comment.
+      tags:
+        - comments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+          description: Comment successfully deleted.
+        "400":
+          description: Invalid comment ID format.
+        "403":
+          description: Forbidden - User is not authorized to delete this comment.
+        "404":
+          description: Comment not found.
+        "500":
+          description: Internal server error.
+
+
+  /auth/login:
+    post:
+      summary: User login
+      description: Login with provided credentials and receive a JWT token and user data.
+      tags:
+        - auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Successful login and token generation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        "400":
+          description: Invalid login credentials
+        "500":
+          description: Internal server error
+
+  /auth/register:
+    post:
+      summary: User registration
+      description: Register a new user and return a JWT token and user data.
+      tags:
+        - auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                username:
+                  type: string
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+      responses:
+        "201":
+          description: User successfully registered and token generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        "400":
+          description: Invalid input data
+        "500":
+          description: Internal server error
+
+  /auth/logout:
+    delete:
+      security:
+        - BearerAuth: []
+      summary: User logout
+      description: Logs the user out and invalidates the JWT token.
+      tags:
+        - auth
+      parameters:
+        - name: JWT_token
+          in: header
+          required: true
+          schema:
+            type: string
+            description: "Bearer token for authentication (JWT)"
+      responses:
+        "200":
+          description: Successfully logged out
+        "401":
+          description: Unauthorized - No valid token provided
+        "500":
+          description: Internal server error
+
+  /users/{id}:
+    get:
+      summary: Get user details
+      description: Retrieve information about a specific user. Only available to logged-in users.
+      tags:
+        - users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID of the user
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        "401":
+          description: Unauthorized - User not logged in
+        "403":
+          description: Forbidden - Insufficient permissions
+        "404":
+          description: User not found
+        "500":
+          description: Internal server error
+
+    delete:
+      summary: Delete a user
+      description: Delete a specific user. Only available to administrators.
+      tags:
+        - users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID of the user to delete
+      responses:
+        "200":
+          description: User successfully deleted
+        "401":
+          description: Unauthorized - User not logged in
+        "403":
+          description: Forbidden - Admin access required
+        "404":
+          description: User not found
+        "500":
+          description: Internal server error
+
+  /users/search:
+    get:
+      summary: Search for users
+      description: Search for users by a query string. Only available to logged-in users.
+      tags:
+        - users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query for usernames or emails
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            description: "The number of items to skip before starting to collect the result set."
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            description: "The number of items to return in the result set."
+      responses:
+        "200":
+          description: List of matching users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        "401":
+          description: Unauthorized - User not logged in
+        "500":
+          description: Internal server error
+
+  /users/block/{id}:
+    patch:
+      summary: Block a user
+      description: Block a specific user. Only available to administrators.
+      tags:
+        - users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID of the user to block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_status:
+                  type: string
+                  enum: [active, blocked]
+      
+      responses:
+        "200":
+          description: User successfully blocked
+        "401":
+          description: Unauthorized - User not logged in
+        "403":
+          description: Forbidden - Admin access required
+        "404":
+          description: User not found
+        "500":
+          description: Internal server error
+
+
+
+  /notes:
+    get:
+      summary: Get a list of notes
+      description: Retrieve a list of all notes.
+      tags:
+        - notes
+      parameters:
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            description: "The number of items to skip before starting to collect the result set."
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            description: "The number of items to return in the result set."
+      responses:
+        "200":
+          description: List of notes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Note'
+        "500":
+          description: Internal server error.
+
+    post:
+      summary: Create a new note
+      tags:
+        - notes
+      operationId: createNote
+      parameters:
+        - name: files
+          in: query
+          description: List of files (.txt, .pdf, .docx)
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: binary
+        - name: metadata
+          in: query
+          description: JSON containing file metadata
+          required: false
+          schema:
+            type: string
+            format: json
+        - name: title
+          in: query
+          description: Title of the note
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                metadata:
+                  type: string
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              description: Note information to be created
+
+      responses:
+        "201":
+          description: Note successfully created
+        "400":
+          description: Invalid input data
+        "401":
+          description: Unauthorized - User not logged in
+        "500":
+          description: Internal server error
+
+  /notes/{id}:
+    get:
+      summary: Get note details
+      description: Retrieve detailed information about a specific note.
+      tags:
+        - notes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID of the note
+      responses:
+        "200":
+          description: Note details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        "404":
+          description: Note not found.
+        "500":
+          description: Internal server error.
+
+
+    put:
+      summary: Update an existing note
+      operationId: updateNote
+      tags :
+        - notes
+      parameters:
+        - name: id
+          in: path
+          description: ID of the note
+          required: true
+          schema:
+            type: string
+        - name: files
+          in: query
+          description: Updated list of files (.txt, .pdf, .docx)
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: binary
+        - name: metadata
+          in: query
+          description: JSON containing updated file metadata
+          required: false
+          schema:
+            type: string
+            format: json
+        - name: title
+          in: query
+          description: Updated title of the note
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                metadata:
+                  type: string
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              description: Note information to be updated
+      responses:
+        "200":
+          description: Note successfully updated
+        "400":
+          description: Invalid input data
+        "401":
+          description: Unauthorized - User not logged in
+        "403":
+          description: Forbidden - User is not the owner of the note
+        "404":
+          description: Note not found
+        "500":
+          description: Internal server error
+
+    delete:
+      summary: Delete a note
+      description: Permanently remove a note.
+      tags:
+        - notes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID of the note
+      responses:
+        "200":
+          description: Note successfully deleted.
+        "401":
+          description: Unauthorized - User not logged in
+        "403":
+          description: Forbidden - User is not the owner of the note
+        "404":
+          description: Note not found
+        "500":
+          description: Internal server error.
+
+  /notes/{id}/download:
+    get:
+      security:
+        - BearerAuth: []
+      summary: Download note file
+      description: Returns the binary file (e.g., PDF) of the note.
+      tags:
+        - notes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the note to download.
+      responses:
+        200:
+          description: Successfully downloaded the note file.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        400:
+          description: Invalid request.
+        404:
+          description: Note not found.
+        500:
+          description: Internal server error.
+
+
+
+  /notes/{id}/like:
+    post:
+      summary: Like a note
+      description: Logged-in users can like a note.
+      tags:
+        - notes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID of the note
+      responses:
+        "200":
+          description: Note successfully liked.
+        "400":
+          description: Invalid note ID format.
+        "401":
+          description: Unauthorized - User not logged in
+        "404":
+          description: Note not found.
+        "500":
+          description: Internal server error.
+
+  /notes/search:
+    get:
+      summary: Search notes
+      description: Search for notes by title or content.
+      tags:
+        - notes
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query.
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            description: "The number of items to skip before starting to collect the result set."
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            description: "The number of items to return in the result set."
+      responses:
+        "200":
+          description: List of matching notes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Note'
+        "400":
+          description: Invalid search query.
+        "500":
+          description: Internal server error.
+
+    
